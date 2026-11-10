@@ -1,5 +1,5 @@
-import { MedicabOnboarding } from '@/components/medicab-onboarding'
+import {redirect} from 'next/navigation'
 
 export default function Page() {
-  return <MedicabOnboarding />
+  redirect('/inscription')
 }
