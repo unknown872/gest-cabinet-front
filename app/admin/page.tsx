@@ -1,5 +1,6 @@
 import { MedicabDashboard } from '@/components/medicab-dashboard'
+import {getCurrentUser} from '@/lib/session'
 
-export default function AdminPage() {
-  return <MedicabDashboard role="admin" />
+export default async function AdminPage() {
+  return <MedicabDashboard role="admin" user={await getCurrentUser()} />
 }

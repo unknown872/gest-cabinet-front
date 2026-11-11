@@ -17,7 +17,7 @@ export async function POST(request: Request) {
             },
         })
     } catch (error) {
-        console.error('Registration API proxy request failed:', error)
+        console.error('Registration API proxy request failed:', error instanceof Error ? error.name : 'UnknownError')
         return Response.json(
             {message: 'Le serveur d’inscription est inaccessible. Vérifiez sa disponibilité.'},
             {status: 502},

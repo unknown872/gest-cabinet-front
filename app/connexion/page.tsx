@@ -1,10 +1,10 @@
 import {MedicabLogin} from '@/components/medicab-login'
 
 type LoginPageProps = {
-    searchParams: Promise<{inscription?: string}>
+    searchParams: Promise<{inscription?: string; returnTo?: string}>
 }
 
 export default async function LoginPage({searchParams}: LoginPageProps) {
-    const {inscription} = await searchParams
-    return <MedicabLogin registrationSuccess={inscription === 'success'}/>
+    const {inscription, returnTo} = await searchParams
+    return <MedicabLogin registrationSuccess={inscription === 'success'} returnTo={returnTo}/>
 }
