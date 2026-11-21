@@ -1,3 +1,4 @@
+import {unwrapApiResponse} from '@/lib/api-response'
 import {ApiError} from '@/lib/availability'
 
 export type DoctorSpecialite = {
@@ -92,7 +93,9 @@ async function request(url: string, init?: RequestInit): Promise<Response> {
  */
 export async function listDoctors(): Promise<Doctor[]> {
     const response = await request('/api/backend/medecins')
-    return (await response.json()) as Doctor[]
+    const body: unknown = unwrapApiResponse(await response.json())
+    if (!Array.isArray(body)) throw new ApiError('La réponse du serveur est invalide.', response.status)
+    return body as Doctor[]
 }
 
 /**
@@ -105,7 +108,9 @@ export async function listAvailableSlots(medecinId: number, date: string): Promi
         date,
     })
     const response = await request(`/api/backend/rendez-vous/creneaux-disponibles?${params.toString()}`)
-    return (await response.json()) as string[]
+    const body: unknown = unwrapApiResponse(await response.json())
+    if (!Array.isArray(body)) throw new ApiError('La réponse du serveur est invalide.', response.status)
+    return body as string[]
 }
 
 /**
@@ -114,7 +119,9 @@ export async function listAvailableSlots(medecinId: number, date: string): Promi
  */
 export async function listMyAppointments(): Promise<PatientAppointment[]> {
     const response = await request('/api/backend/rendez-vous')
-    return (await response.json()) as PatientAppointment[]
+    const body: unknown = unwrapApiResponse(await response.json())
+    if (!Array.isArray(body)) throw new ApiError('La réponse du serveur est invalide.', response.status)
+    return body as PatientAppointment[]
 }
 
 /**
@@ -126,7 +133,11 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
         method: 'POST',
         body: JSON.stringify(input),
     })
-    return (await response.json()) as PatientAppointment
+    const body: unknown = unwrapApiResponse(await response.json())
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+        throw new ApiError('La réponse du serveur est invalide.', response.status)
+    }
+    return body as PatientAppointment
 }
 
 /**
@@ -141,7 +152,11 @@ export async function updateMyAppointment(
         method: 'PUT',
         body: JSON.stringify(input),
     })
-    return (await response.json()) as PatientAppointment
+    const body: unknown = unwrapApiResponse(await response.json())
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+        throw new ApiError('La réponse du serveur est invalide.', response.status)
+    }
+    return body as PatientAppointment
 }
 
 /**
