@@ -37,7 +37,7 @@ import {
     type AppointmentStatus,
     type Doctor,
     type PatientAppointment,
-} from '@/lib/appointments'
+} from '@/lib/appointments-patient'
 import {ApiError, toHourMinute} from '@/lib/availability'
 
 type ViewMode = 'list' | 'booking'
