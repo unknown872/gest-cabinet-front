@@ -1,4 +1,5 @@
 import {ApiError} from '@/lib/availability'
+import {unwrapApiResponse} from '@/lib/api-response'
 
 export type DoctorSpecialite = {
     id: number
@@ -86,13 +87,35 @@ async function request(url: string, init?: RequestInit): Promise<Response> {
     return response
 }
 
+async function readResponseData(response: Response): Promise<unknown> {
+    try {
+        return unwrapApiResponse(await response.json())
+    } catch {
+        throw new ApiError('La réponse du serveur est invalide.', response.status)
+    }
+}
+
+async function readResponseList<T>(response: Response): Promise<T[]> {
+    const data = await readResponseData(response)
+    if (!Array.isArray(data)) throw new ApiError('La réponse du serveur est invalide.', response.status)
+    return data as T[]
+}
+
+async function readResponseObject<T>(response: Response): Promise<T> {
+    const data = await readResponseData(response)
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+        throw new ApiError('La réponse du serveur est invalide.', response.status)
+    }
+    return data as T
+}
+
 /**
  * GET /api/backend/medecins
  * Récupère la liste des médecins du cabinet avec leurs spécialités et disponibilités déclarées.
  */
 export async function listDoctors(): Promise<Doctor[]> {
     const response = await request('/api/backend/medecins')
-    return (await response.json()) as Doctor[]
+    return readResponseList<Doctor>(response)
 }
 
 /**
@@ -105,7 +128,7 @@ export async function listAvailableSlots(medecinId: number, date: string): Promi
         date,
     })
     const response = await request(`/api/backend/rendez-vous/creneaux-disponibles?${params.toString()}`)
-    return (await response.json()) as string[]
+    return readResponseList<string>(response)
 }
 
 /**
@@ -114,7 +137,7 @@ export async function listAvailableSlots(medecinId: number, date: string): Promi
  */
 export async function listMyAppointments(): Promise<PatientAppointment[]> {
     const response = await request('/api/backend/rendez-vous')
-    return (await response.json()) as PatientAppointment[]
+    return readResponseList<PatientAppointment>(response)
 }
 
 /**
@@ -126,7 +149,7 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
         method: 'POST',
         body: JSON.stringify(input),
     })
-    return (await response.json()) as PatientAppointment
+    return readResponseObject<PatientAppointment>(response)
 }
 
 /**
@@ -141,7 +164,7 @@ export async function updateMyAppointment(
         method: 'PUT',
         body: JSON.stringify(input),
     })
-    return (await response.json()) as PatientAppointment
+    return readResponseObject<PatientAppointment>(response)
 }
 
 /**
