@@ -1,3 +1,5 @@
+import {unwrapApiResponse} from '@/lib/api-response'
+
 export type Availability = {
     id: number
     medecinNomComplet: string
@@ -56,17 +58,27 @@ async function request(url: string, init?: RequestInit): Promise<Response> {
 
 export async function listAvailabilities(): Promise<Availability[]> {
     const response = await request(BASE_URL)
-    return (await response.json()) as Availability[]
+    const body: unknown = unwrapApiResponse(await response.json())
+    if (!Array.isArray(body)) throw new ApiError('La réponse du serveur est invalide.', response.status)
+    return body as Availability[]
 }
 
 export async function createAvailability(input: AvailabilityInput): Promise<Availability> {
     const response = await request(BASE_URL, {method: 'POST', body: JSON.stringify(input)})
-    return (await response.json()) as Availability
+    const body: unknown = unwrapApiResponse(await response.json())
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+        throw new ApiError('La réponse du serveur est invalide.', response.status)
+    }
+    return body as Availability
 }
 
 export async function updateAvailability(id: number, input: AvailabilityInput): Promise<Availability> {
     const response = await request(`${BASE_URL}/${id}`, {method: 'PUT', body: JSON.stringify(input)})
-    return (await response.json()) as Availability
+    const body: unknown = unwrapApiResponse(await response.json())
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+        throw new ApiError('La réponse du serveur est invalide.', response.status)
+    }
+    return body as Availability
 }
 
 export async function deleteAvailability(id: number): Promise<void> {
