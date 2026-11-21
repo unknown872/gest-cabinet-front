@@ -2,10 +2,19 @@
 
 import {useRouter} from 'next/navigation'
 import {Activity, CalendarDays, ChevronRight} from 'lucide-react'
-import type {ReactNode} from 'react'
+import {useEffect, useState, type ReactNode} from 'react'
 import type {AuthenticatedUser, UserRole} from '@/lib/auth'
 import {DashboardLayout, PermissionAction} from '@/components/dashboard-layout'
 import {roleData, type DashboardPermission} from '@/lib/permissions'
+import {
+    changeAppointmentStatus,
+    formatAppointmentDateTime,
+    getAppointmentStatusClasses,
+    getAppointmentStatusLabel,
+    listAllAppointments,
+    listAppointmentsForDay,
+    type Appointment,
+} from '@/lib/appointments'
 
 type ListRow = [label: string, title: string, description: string]
 
@@ -264,26 +273,102 @@ function DoctorDashboard() {
 }
 
 function SecretariatDashboard() {
-    const appointments = [
-        {time: '10:30', patient: 'Lucas Mercier', doctor: 'Dr. Aminata Diallo', status: 'En cours'},
-        {time: '11:00', patient: 'Chloé Vasseur', doctor: 'Dr. Alexandre Roy', status: 'Confirmé'},
-        {time: '11:15', patient: 'Chantal Gauthier', doctor: 'Dr. Aminata Diallo', status: 'En attente'},
-        {time: '11:30', patient: 'Marc Lafont', doctor: 'Dr. Alexandre Roy', status: 'Absent'},
-        {time: '12:00', patient: 'Henriette Petit', doctor: 'Dr. Alexandre Roy', status: 'En attente'},
-    ]
-    const appointmentsToConfirm = [
-        {name: 'Nathalie Morel', date: 'Demain à 10:00', details: 'Consultation • Dr. Diallo'},
-        {name: 'Paul Lefèvre', date: '26 Fév à 15:30', details: 'Premier rdv • Dr. Roy'},
-        {name: 'Julie Simon', date: '26 Fév à 16:15', details: 'Suivi • Dr. Diallo'},
-    ]
+    const [appointments, setAppointments] = useState<Appointment[]>([])
+    const [isLoadingAppointments, setIsLoadingAppointments] = useState(true)
+    const [appointmentsError, setAppointmentsError] = useState('')
+    const [reloadKey, setReloadKey] = useState(0)
+    const [allAppointments, setAllAppointments] = useState<Appointment[]>([])
+    const [isLoadingConfirmations, setIsLoadingConfirmations] = useState(true)
+    const [confirmationsError, setConfirmationsError] = useState('')
+    const [confirmationsReloadKey, setConfirmationsReloadKey] = useState(0)
+    const [updatingAppointmentId, setUpdatingAppointmentId] = useState<number | null>(null)
+    const [appointmentActionErrors, setAppointmentActionErrors] = useState<Record<number, string>>({})
+
+    useEffect(() => {
+        const controller = new AbortController()
+        const today = new Date()
+        const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+        setIsLoadingAppointments(true)
+        setAppointmentsError('')
+        listAppointmentsForDay(date, controller.signal)
+            .then(setAppointments)
+            .catch((error: unknown) => {
+                if (!controller.signal.aborted) {
+                    setAppointmentsError(error instanceof Error ? error.message : 'Impossible de charger le planning.')
+                }
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setIsLoadingAppointments(false)
+            })
+
+        return () => controller.abort()
+    }, [reloadKey])
+
+    useEffect(() => {
+        const controller = new AbortController()
+        setIsLoadingConfirmations(true)
+        setConfirmationsError('')
+        listAllAppointments(controller.signal)
+            .then(setAllAppointments)
+            .catch((error: unknown) => {
+                if (!controller.signal.aborted) {
+                    setConfirmationsError(error instanceof Error ? error.message : 'Impossible de charger les rendez-vous à confirmer.')
+                }
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setIsLoadingConfirmations(false)
+            })
+
+        return () => controller.abort()
+    }, [confirmationsReloadKey])
+
+    const pendingAppointments = allAppointments
+        .filter(({statut}) => statut === 'PLANIFIE')
+        .sort((left, right) => left.dateHeure.localeCompare(right.dateHeure))
+    const expectedPatientsCount = appointments.filter(({statut}) => statut === 'PLANIFIE' || statut === 'CONFIRME').length
+    const confirmedAppointmentsCount = appointments.filter(({statut}) => statut === 'CONFIRME').length
+    const appointmentsToConfirmCount = pendingAppointments.length
+
+    const handleAppointmentAction = async (appointmentId: number, action: 'confirm' | 'cancel') => {
+        if (updatingAppointmentId !== null) return
+        setUpdatingAppointmentId(appointmentId)
+        setAppointmentActionErrors((errors) => {
+            const nextErrors = {...errors}
+            delete nextErrors[appointmentId]
+            return nextErrors
+        })
+
+        try {
+            const statut = await changeAppointmentStatus(appointmentId, action)
+            const updateStatus = (items: Appointment[]) => items.map((appointment) =>
+                appointment.id === appointmentId ? {...appointment, statut} : appointment)
+            setAllAppointments(updateStatus)
+            setAppointments(updateStatus)
+        } catch (error) {
+            setAppointmentActionErrors((errors) => ({
+                ...errors,
+                [appointmentId]: error instanceof Error
+                    ? error.message
+                    : 'Impossible de modifier le statut du rendez-vous.',
+            }))
+        } finally {
+            setUpdatingAppointmentId(null)
+        }
+    }
 
     return (
         <>
             <Intro role="secretariat"/>
             <div className="grid gap-4 sm:grid-cols-3">
-                <Stat label="Patients attendus" value="24" note="Aujourd'hui"/>
-                <Stat label="RDV à confirmer" value="5" tone="orange"/>
-                <Stat label="Demandes web" value="8" tone="blue"/>
+                <Stat label="Patients attendus" value={String(expectedPatientsCount)} note="Aujourd'hui"/>
+                <Stat label="RDV à confirmer" value={String(appointmentsToConfirmCount)} tone="orange"/>
+                <Stat
+                    label="RDV confirmés"
+                    value={isLoadingAppointments ? '…' : appointmentsError ? '—' : String(confirmedAppointmentsCount)}
+                    note="Aujourd'hui"
+                    tone="blue"
+                />
             </div>
 
             <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
@@ -291,7 +376,7 @@ function SecretariatDashboard() {
                     <SectionTitle
                         role="secretariat"
                         permission="appointments.create"
-                        title="File d'attente du jour"
+                        title="Planning du jour"
                         action="Nouveau rendez-vous"
                     />
                     <div className="overflow-x-auto">
@@ -305,17 +390,21 @@ function SecretariatDashboard() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {appointments.map(({time, patient, doctor, status}) => (
-                                    <tr key={patient} className="border-b border-[#f0f4f4] last:border-0">
-                                        <td className="py-3 font-semibold text-[#0e8b8c]">{time}</td>
-                                        <td className="py-3 font-semibold text-[#23465b]">{patient}</td>
-                                        <td className="py-3 text-xs text-[#78909c]">{doctor}</td>
-                                        <td className="py-3">
-                                            <span className="rounded-full bg-[#fff5dd] px-2 py-1 text-[10px] font-semibold text-[#c28a2b]">
-                                                {status}
-                                            </span>
+                                {isLoadingAppointments ? (
+                                    <tr><td colSpan={4} className="py-8 text-center text-sm text-[#78909c]">Chargement du planning…</td></tr>
+                                ) : appointmentsError ? (
+                                    <tr>
+                                        <td colSpan={4} className="py-6 text-center text-sm text-[#b4533c]">
+                                            <p>{appointmentsError}</p>
+                                            <button type="button" onClick={() => setReloadKey((key) => key + 1)} className="mt-2 font-semibold underline">
+                                                Réessayer
+                                            </button>
                                         </td>
                                     </tr>
+                                ) : appointments.length === 0 ? (
+                                    <tr><td colSpan={4} className="py-8 text-center text-sm text-[#78909c]">Aucun rendez-vous prévu aujourd'hui.</td></tr>
+                                ) : appointments.map((appointment) => (
+                                    <AppointmentRow key={appointment.id} appointment={appointment}/>
                                 ))}
                             </tbody>
                         </table>
@@ -323,26 +412,52 @@ function SecretariatDashboard() {
                 </Card>
 
                 <Card>
-                    <SectionTitle role="secretariat" title="Rendez-vous à valider (5)"/>
+                    <SectionTitle role="secretariat" title={`Rendez-vous à valider (${appointmentsToConfirmCount})`}/>
                     <div className="space-y-3">
-                        {appointmentsToConfirm.map(({name, date, details}) => (
-                            <div key={name} className="rounded-xl border border-[#edf2f2] p-3">
-                                <div className="flex justify-between">
-                                    <p className="text-sm font-semibold text-[#23465b]">{name}</p>
-                                    <span className="text-[10px] text-[#9aadb3]">{date}</span>
+                        {isLoadingConfirmations ? (
+                            <p className="py-6 text-center text-sm text-[#78909c]">Chargement des rendez-vous à confirmer…</p>
+                        ) : confirmationsError ? (
+                            <div className="py-6 text-center text-sm text-[#b4533c]">
+                                <p>{confirmationsError}</p>
+                                <button type="button" onClick={() => setConfirmationsReloadKey((key) => key + 1)} className="mt-2 font-semibold underline">
+                                    Réessayer
+                                </button>
+                            </div>
+                        ) : pendingAppointments.length === 0 ? (
+                            <p className="py-6 text-center text-sm text-[#78909c]">Aucun rendez-vous à confirmer.</p>
+                        ) : pendingAppointments.map((appointment) => (
+                            <div key={appointment.id} className="rounded-xl border border-[#edf2f2] p-3">
+                                <div className="flex justify-between gap-3">
+                                    <p className="text-sm font-semibold text-[#23465b]">
+                                        {[appointment.prenomPatient, appointment.nomPatient].filter(Boolean).join(' ') || 'Patient inconnu'}
+                                    </p>
+                                    <span className="shrink-0 text-[10px] text-[#9aadb3]">{formatAppointmentDateTime(appointment.dateHeure)}</span>
                                 </div>
-                                <p className="mt-1 text-xs text-[#81979f]">{details}</p>
+                                <p className="mt-1 text-xs text-[#81979f]">
+                                    {[appointment.motif, appointment.prenomMedecin || appointment.nomMedecin
+                                        ? `Dr. ${[appointment.prenomMedecin, appointment.nomMedecin].filter(Boolean).join(' ')}`
+                                        : null].filter(Boolean).join(' • ')}
+                                </p>
+                                {appointmentActionErrors[appointment.id] && (
+                                    <p role="alert" className="mt-2 text-xs text-[#b4533c]">{appointmentActionErrors[appointment.id]}</p>
+                                )}
                                 <div className="mt-3 flex gap-2">
                                     <PermissionAction
                                         role="secretariat"
                                         permission="appointments.manage"
+                                        type="button"
+                                        onClick={() => handleAppointmentAction(appointment.id, 'confirm')}
+                                        disabled={updatingAppointmentId !== null}
                                         className="rounded-lg bg-[#e4f6f4] px-3 py-1.5 text-xs font-semibold text-[#0b898a]"
                                     >
-                                        Confirmer
+                                        {updatingAppointmentId === appointment.id ? 'Mise à jour…' : 'Confirmer'}
                                     </PermissionAction>
                                     <PermissionAction
                                         role="secretariat"
                                         permission="appointments.manage"
+                                        type="button"
+                                        onClick={() => handleAppointmentAction(appointment.id, 'cancel')}
+                                        disabled={updatingAppointmentId !== null}
                                         className="rounded-lg bg-[#fff0e9] px-3 py-1.5 text-xs font-semibold text-[#d77652]"
                                     >
                                         Annuler
@@ -354,6 +469,25 @@ function SecretariatDashboard() {
                 </Card>
             </div>
         </>
+    )
+}
+
+function AppointmentRow({appointment}: {appointment: Appointment}) {
+    const time = appointment.dateHeure.includes('T') ? appointment.dateHeure.split('T')[1].slice(0, 5) : '—'
+    const patientName = [appointment.prenomPatient, appointment.nomPatient].filter(Boolean).join(' ') || 'Patient inconnu'
+    const doctorName = [appointment.prenomMedecin, appointment.nomMedecin].filter(Boolean).join(' ')
+
+    return (
+        <tr className="border-b border-[#f0f4f4] last:border-0">
+            <td className="py-3 font-semibold text-[#0e8b8c]">{time}</td>
+            <td className="py-3 font-semibold text-[#23465b]">{patientName}</td>
+            <td className="py-3 text-xs text-[#78909c]">{doctorName ? `Dr. ${doctorName}` : '—'}</td>
+            <td className="py-3">
+                <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${getAppointmentStatusClasses(appointment.statut)}`}>
+                    {getAppointmentStatusLabel(appointment.statut)}
+                </span>
+            </td>
+        </tr>
     )
 }
 
