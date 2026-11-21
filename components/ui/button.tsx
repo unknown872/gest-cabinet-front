@@ -8,16 +8,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground [a]:hover:bg-primary/80',
+        default: 'bg-[#007acc] text-white hover:bg-[#0266ad]',
         outline:
-          'border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50',
+          'border-[#b9d9eb] bg-[#f0f9ff] text-[#007acc] hover:border-[#007acc] hover:bg-[#dff0ff]',
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground',
+          'bg-[#e0f2fe] text-[#007acc] hover:bg-[#bae6fd]',
         ghost:
-          'hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50',
+          'text-[#183b50] hover:bg-[#f0f9ff] hover:text-[#007acc]',
         destructive:
-          'bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40',
-        link: 'text-primary underline-offset-4 hover:underline',
+          'bg-red-50 text-red-700 hover:bg-red-100 focus-visible:border-red-300 focus-visible:ring-red-200',
+        link: 'text-[#007acc] underline-offset-4 hover:underline',
       },
       size: {
         default:

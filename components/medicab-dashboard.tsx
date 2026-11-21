@@ -1,5 +1,6 @@
 'use client'
 
+import {useRouter} from 'next/navigation'
 import {Activity, CalendarDays, ChevronRight} from 'lucide-react'
 import type {ReactNode} from 'react'
 import type {AuthenticatedUser, UserRole} from '@/lib/auth'
@@ -63,6 +64,7 @@ function Stat({label, value, note, tone = 'teal'}: {
 }
 
 function PatientDashboard() {
+    const router = useRouter()
     const consultations: ListRow[] = [
         ['10 FÉVRIER 2026', 'Dr. Aminata Diallo', 'Suivi de routine & Fatigue'],
         ['15 JANVIER 2026', 'Dr. Amadou Ba', 'Radiologie Cheville gauche'],
@@ -94,6 +96,7 @@ function PatientDashboard() {
                     <PermissionAction
                         role="patient"
                         permission="appointments.create.own"
+                        onClick={() => router.push('/patient/rendez-vous')}
                         className="mt-6 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#0e8b8c]"
                     >
                         Gérer le rendez-vous
